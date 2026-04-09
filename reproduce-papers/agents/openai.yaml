@@ -1,0 +1,4 @@
+interface:
+  display_name: "Reproduce Papers"
+  short_description: "Reproduce computer science papers with traceable notes."
+  default_prompt: "Use $reproduce-papers to plan a runnable reproduction for this paper and track any missing details."
