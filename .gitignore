@@ -1,5 +1,8 @@
+.system/
+_shared/
+codex-primary-runtime/
+
 sps/
-superpowers/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
