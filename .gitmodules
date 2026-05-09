@@ -1,7 +1,9 @@
 [submodule "superpowers"]
 	path = superpowers
 	url = https://github.com/obra/superpowers.git
-
 [submodule "Research-Paper-Writing-Skills"]
 	path = Research-Paper-Writing-Skills
 	url = https://github.com/Master-cai/Research-Paper-Writing-Skills.git
+[submodule "figures4papers"]
+	path = figures4papers
+	url = https://github.com/ChenLiu-1996/figures4papers.git
