@@ -7,3 +7,6 @@
 [submodule "figures4papers"]
 	path = figures4papers
 	url = https://github.com/ChenLiu-1996/figures4papers.git
+[submodule "skill-based-architecture"]
+	path = skill-based-architecture
+	url = https://github.com/WoJiSama/skill-based-architecture.git
