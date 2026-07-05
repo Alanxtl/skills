@@ -1,0 +1,6 @@
+interface:
+  display_name: "Codex Sidebar History Recovery"
+  short_description: "Restore missing Desktop thread history."
+  default_prompt: "Use $codex-sidebar-history-recovery to diagnose why Codex Desktop only shows the current thread and restore sidebar history safely."
+policy:
+  allow_implicit_invocation: true
