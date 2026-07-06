@@ -7,12 +7,13 @@ description: Diagnose and restore Codex Desktop thread history when the sidebar 
 
 ## Purpose
 
-Recover visibility of existing Codex conversations in Codex Desktop's sidebar. Treat this as an index/cache/app-server problem unless evidence shows raw session files are missing.
+Recover visibility of existing Codex conversations in Codex Desktop's sidebar. Treat this as a provider-metadata/index/cache/app-server problem unless evidence shows raw session files are missing.
 
 ## Safety Rules
 
-- Do not delete, move, truncate, or rewrite `~/.codex/sessions`, `~/.codex/archived_sessions`, or `rollout-*.jsonl`.
-- Before modifying any Codex state file, create timestamped backups of `~/.codex/state_*.sqlite` and `~/.codex/session_index.jsonl`.
+- Do not delete, move, truncate, or rewrite message content in `~/.codex/sessions`, `~/.codex/archived_sessions`, or `rollout-*.jsonl`.
+- Provider metadata repair may rewrite only the first `session_meta` line in `rollout-*.jsonl`; never edit conversation event lines.
+- Before modifying any Codex state file, create timestamped backups of `~/.codex/state_*.sqlite`, `~/.codex/sqlite/state_*.sqlite`, `~/.codex/session_index.jsonl`, and `.codex-global-state.json` when present.
 - Prefer read-only inspection first. Restart app-server only after confirming the session records exist.
 - If multiple users have app-server processes on a shared host, only touch the current user's processes and files.
 - Warn the user that app-server restart may refresh/reconnect the Desktop host but should not affect repository files.
@@ -49,6 +50,68 @@ head -3 ~/.codex/session_index.jsonl
 ```
 
 If `threads` has many more rows than `session_index.jsonl`, rebuild the index from the DB.
+
+## Provider Metadata Sync First
+
+Before rebuilding `session_index.jsonl`, synchronize Codex provider visibility metadata when history exists but the sidebar or `/resume` is filtered to the wrong provider. This addresses mismatches among rollout metadata, SQLite thread metadata, and Codex Desktop project-root cache.
+
+1. Determine the current provider:
+
+- Read the root-level `model_provider` from `~/.codex/config.toml`.
+- If no root-level `model_provider` is present before the first TOML table, treat the current provider as Codex's implicit default: `openai`.
+
+2. Create a timestamped backup before any write:
+
+```bash
+backup="$HOME/.codex/backups_state/sidebar-history-recovery/$(date +%Y%m%dT%H%M%S)"
+mkdir -p "$backup"
+cp -a ~/.codex/session_index.jsonl "$backup/" 2>/dev/null || true
+cp -a ~/.codex/.codex-global-state.json "$backup/" 2>/dev/null || true
+cp -a ~/.codex/.codex-global-state.json.bak "$backup/" 2>/dev/null || true
+cp -a ~/.codex/state_*.sqlite* "$backup/" 2>/dev/null || true
+mkdir -p "$backup/sqlite"
+cp -a ~/.codex/sqlite/state_*.sqlite* "$backup/sqlite/" 2>/dev/null || true
+```
+
+3. Synchronize rollout provider metadata:
+
+- Scan `~/.codex/sessions/**/rollout-*.jsonl` and `~/.codex/archived_sessions/**/rollout-*.jsonl`.
+- For each file, parse only the first line when it is `{"type":"session_meta", ...}`.
+- If `payload.model_provider` differs from the current provider, rewrite only that first line to the current provider.
+- Preserve all following conversation event lines exactly.
+- While scanning, collect:
+  - `payload.id` as the thread id.
+  - `payload.cwd` as the thread working directory.
+  - Whether any line contains a user message.
+  - Whether the file contains `encrypted_content`.
+
+4. Synchronize SQLite thread metadata:
+
+- Open each existing state database candidate:
+  - `~/.codex/sqlite/state_5.sqlite`
+  - `~/.codex/state_5.sqlite`
+  - any `sqlite_home` configured in `config.toml`
+  - any `CODEX_SQLITE_HOME` override
+- In one transaction per database:
+  - Set `threads.model_provider` to the current provider when it differs.
+  - Set `threads.has_user_event = 1` for thread ids where rollout scanning found a user message.
+  - Set `threads.cwd` from rollout `session_meta.payload.cwd` when the database row differs.
+
+5. Normalize Codex Desktop project-root cache:
+
+- If `~/.codex/.codex-global-state.json` exists, normalize project path entries in:
+  - `electron-saved-workspace-roots`
+  - `project-order`
+  - `active-workspace-roots`
+  - `electron-workspace-root-labels`
+  - `open-in-target-preferences.perPath`
+- On Windows, convert extended paths such as `\\?\C:\...` and `\\?\UNC\...` to the Desktop-visible form.
+
+6. Warn about encrypted content:
+
+- Visibility repair does not re-encrypt `encrypted_content`.
+- Old sessions may become visible but still fail when continued or compacted across a different provider/account.
+- If rollout files or SQLite are locked, close Codex Desktop/app-server and retry.
 
 ## Rebuild session_index.jsonl
 
